@@ -1,5 +1,5 @@
 """
-Apertura de Cuentas INVEX — Persona Física
+Apertura de Cuentas INVEX — Persona Física y Persona Moral
 App Streamlit: sube el PDF → extrae → llena formatos → descarga ZIP
 """
 from __future__ import annotations
@@ -146,11 +146,75 @@ class Persona:
                                     self.apellido_materno] if p).strip()
 
 
+class Empresa:
+    def __init__(self, razon_social="", rfc="", nacionalidad="MEXICO",
+                 pais_residencia="MEXICO", fecha_constitucion=None,
+                 acta_constitutiva="", notario="", numero_notario="",
+                 ciudad_notario="", inscripcion_rpp="", tipo_sociedad="",
+                 giro="", fiel="", telefono="", correo="", domicilio=None):
+        self.razon_social       = razon_social
+        self.rfc                = rfc.strip().upper()
+        self.nacionalidad       = nacionalidad
+        self.pais_residencia    = pais_residencia
+        self.fecha_constitucion = fecha_constitucion
+        self.acta_constitutiva  = acta_constitutiva
+        self.notario            = notario
+        self.numero_notario     = numero_notario
+        self.ciudad_notario     = ciudad_notario
+        self.inscripcion_rpp    = inscripcion_rpp
+        self.tipo_sociedad      = tipo_sociedad
+        self.giro               = giro
+        self.fiel               = fiel
+        self.telefono           = telefono
+        self.correo             = correo
+        self.domicilio          = domicilio or Domicilio()
+
+
+class Accionista:
+    def __init__(self, nombre="", apellido_paterno="", apellido_materno="",
+                 porcentaje=0.0, nacionalidad="", es_pep=False):
+        self.nombre           = nombre
+        self.apellido_paterno = apellido_paterno
+        self.apellido_materno = apellido_materno
+        self.porcentaje       = porcentaje
+        self.nacionalidad     = nacionalidad
+        self.es_pep           = es_pep
+
+    @property
+    def nombre_completo(self) -> str:
+        return " ".join(p for p in [self.nombre, self.apellido_paterno,
+                                    self.apellido_materno] if p).strip()
+
+
+class RepresentanteLegal:
+    def __init__(self, nombre="", apellido_paterno="", apellido_materno="",
+                 nacionalidad="MEXICO", tipo_identificacion="INE",
+                 numero_identificacion="", vigencia_identificacion=None,
+                 puesto="", acta_poderes="", notario_poderes="", ciudad_poderes=""):
+        self.nombre                  = nombre
+        self.apellido_paterno        = apellido_paterno
+        self.apellido_materno        = apellido_materno
+        self.nacionalidad            = nacionalidad
+        self.tipo_identificacion     = tipo_identificacion
+        self.numero_identificacion   = numero_identificacion
+        self.vigencia_identificacion = vigencia_identificacion
+        self.puesto                  = puesto
+        self.acta_poderes            = acta_poderes
+        self.notario_poderes         = notario_poderes
+        self.ciudad_poderes          = ciudad_poderes
+
+    @property
+    def nombre_completo(self) -> str:
+        return " ".join(p for p in [self.nombre, self.apellido_paterno,
+                                    self.apellido_materno] if p).strip()
+
+
 class Solicitud:
     def __init__(self, tipo_persona, institucion="INVEX", numero_contrato="",
                  fecha_alta=None, ejecutivo_cuenta="", titular=None,
                  cotitulares=None, procedencia_recursos="", uso_cuenta="",
-                 monto_apertura=None):
+                 monto_apertura=None, empresa=None, accionistas=None,
+                 representantes=None):
         self.tipo_persona        = tipo_persona
         self.institucion         = institucion
         self.numero_contrato     = (numero_contrato or "").strip()
@@ -161,19 +225,32 @@ class Solicitud:
         self.procedencia_recursos= procedencia_recursos
         self.uso_cuenta          = uso_cuenta
         self.monto_apertura      = monto_apertura
+        self.empresa             = empresa
+        self.accionistas         = accionistas or []
+        self.representantes      = representantes or []
 
     def advertencias(self) -> list[str]:
-        w, t = [], self.titular
-        if t.rfc and not (RFC_PF.match(t.rfc) or RFC_PM.match(t.rfc)):
-            w.append(f"RFC '{t.rfc}' no cumple el formato oficial.")
-        if t.curp and not CURP_RE.match(t.curp):
-            w.append(f"CURP '{t.curp}' no cumple el formato oficial.")
-        if not t.nombre_completo:
-            w.append("Falta el nombre del titular.")
+        w = []
         if not self.numero_contrato:
             w.append("Falta el número de contrato.")
-        if t.correo and "@" not in t.correo:
-            w.append(f"Correo '{t.correo}' parece inválido.")
+        if self.tipo_persona == TipoPersona.FISICA:
+            t = self.titular
+            if t.rfc and not (RFC_PF.match(t.rfc) or RFC_PM.match(t.rfc)):
+                w.append(f"RFC '{t.rfc}' no cumple el formato oficial.")
+            if t.curp and not CURP_RE.match(t.curp):
+                w.append(f"CURP '{t.curp}' no cumple el formato oficial.")
+            if not t.nombre_completo:
+                w.append("Falta el nombre del titular.")
+            if t.correo and "@" not in t.correo:
+                w.append(f"Correo '{t.correo}' parece inválido.")
+        else:
+            e = self.empresa
+            if not e or not e.razon_social:
+                w.append("Falta la razón social de la empresa.")
+            if e and e.rfc and not RFC_PM.match(e.rfc):
+                w.append(f"RFC '{e.rfc}' no cumple el formato de Persona Moral.")
+            if not self.representantes:
+                w.append("No se encontró representante legal.")
         return w
 
 
@@ -263,9 +340,90 @@ def extraer_pf(data: bytes) -> Solicitud:
     return sol
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# MAPEOS
-# ══════════════════════════════════════════════════════════════════════════════
+def extraer_pm(data: bytes) -> Solicitud:
+    texto = leer_texto_pdf(data)
+
+    empresa = Empresa(
+        razon_social      = _buscar(r"DENOMINACION / RAZON SOCIAL:\s*(.+)", texto),
+        rfc               = _buscar(r"R\. ?F\.C\.?:\s*([A-ZÑ&]{3}\d{6}[A-Z0-9]{3})", texto),
+        nacionalidad      = _buscar(r"NACIONALIDAD:\s*([A-ZÁÉÍÓÚÑ]+)", texto) or "MEXICO",
+        pais_residencia   = _buscar(r"PAIS RESIDENCIA:\s*([A-ZÁÉÍÓÚÑ]+)", texto) or "MEXICO",
+        fecha_constitucion= _fecha(_buscar(r"DE FECHA:\s*(\d{2}/\d{2}/\d{4})", texto)),
+        acta_constitutiva = _buscar(r"ACTA CONSTITUTUVA No\.:\s*([\d,]+)", texto),
+        notario           = _buscar(r"NOTARIO:\s*(.+?)(?:No\.|DE LA CIUDAD|\n)", texto),
+        numero_notario    = _buscar(r"No\. NOTARIO:\s*(\d+)", texto),
+        ciudad_notario    = _buscar(r"DE LA CIUDAD:\s*([A-ZÁÉÍÓÚÑ]+)", texto),
+        inscripcion_rpp   = _buscar(r"INSCRIPCION R\.P\.P\. y C\.:\s*(\d+)", texto),
+        tipo_sociedad     = _buscar(r"TIPO DE PERSONA MORAL:\s*(.+?)(?:\n|No\.)", texto),
+        giro              = _buscar(r"GIRO DE NEGOCIO / ACTIVIDAD:\s*(.+?)(?:\n|No\.)", texto),
+        fiel              = _buscar(r"FIEL:\s*([\dA-Z]+)", texto),
+        telefono          = _buscar(r"CELULAR / MOVIL\s*([\d()]+)", texto),
+        correo            = _buscar(r"CORREO ELECTRONICO:\s*([\w.\-]+@[\w.\-]+)", texto),
+        domicilio         = Domicilio(
+            calle_numero      = _buscar(r"CALLE Y NUMERO:\s*(.+)", texto),
+            colonia           = _buscar(r"COLONIA:\s*(.+?)(?:CODIGO POSTAL|\n)", texto),
+            municipio         = _buscar(r"DELEGACION O MUNICIPIO:\s*(.+?)(?:CD\.|\n)", texto),
+            ciudad            = _buscar(r"CD\. O POB\.:\s*(.+?)(?:COMPROBANTE|\n)", texto),
+            entidad_federativa= _buscar(r"ENTIDAD FEDERATIVA:\s*(.+?)(?:PAIS|\n)", texto),
+            pais              = _buscar(r"PAIS:\s*([A-ZÁÉÍÓÚÑ]+)", texto) or "MEXICO",
+            codigo_postal     = _buscar(r"CODIGO POSTAL:\s*(\d{4,5})", texto),
+        ),
+    )
+
+    # Accionistas
+    accionistas = []
+    for m in re.finditer(
+        r"([A-ZÁÉÍÓÚÑ]+)\s+([A-ZÁÉÍÓÚÑ]+)\s+([A-ZÁÉÍÓÚÑ]+)\s+(\d+)\s+Si\s+No",
+        texto, re.IGNORECASE
+    ):
+        accionistas.append(Accionista(
+            nombre           = m.group(1),
+            apellido_paterno = m.group(2),
+            apellido_materno = m.group(3),
+            porcentaje       = float(m.group(4)),
+        ))
+
+    # Representante legal
+    representantes = []
+    if "REPRESENTANTE LEGAL 1" in texto:
+        rl_txt = texto.split("REPRESENTANTE LEGAL 1")[1].split("ORGANIGRAMA")[0]
+        rl = RepresentanteLegal(
+            nombre                = _buscar(r"NOMBRES\(S\):\s*([A-ZÁÉÍÓÚÑ ]+?)(?:NACIONALIDAD|\n)", rl_txt),
+            apellido_paterno      = _buscar(r"APELLIDO PATERNO:\s*(.+?)(?:TIPO DE FIRMA|\n)", rl_txt),
+            apellido_materno      = _buscar(r"APELLIDO MATERNO:\s*(.+?)(?:PUESTO|\n)", rl_txt),
+            nacionalidad          = _buscar(r"NACIONALIDAD:\s*([A-ZÁÉÍÓÚÑ]+)", rl_txt) or "MEXICO",
+            tipo_identificacion   = "INE",
+            numero_identificacion = _buscar(r"NUMERO IDENTIFICACION:\s*([\dA-Z]+)", rl_txt),
+            vigencia_identificacion= _fecha(_buscar(r"VIGENCIA:\s*(\d{2}/\d{2}/\d{4})", rl_txt)),
+            puesto                = _buscar(r"PUESTO EN LA EMPRESA:\s*(.+?)(?:\n|$)", rl_txt),
+            acta_poderes          = _buscar(r"ACTA No\. \(Poderes\):\s*([\d,]+)", rl_txt),
+            notario_poderes       = _buscar(r"ANTE EL NOTARIO:\s*(.+?)(?:CON No\.|\n)", rl_txt),
+            ciudad_poderes        = _buscar(r"DE LA CIUDAD:\s*([A-ZÁÉÍÓÚÑ]+)", rl_txt),
+        )
+        if rl.nombre_completo:
+            representantes.append(rl)
+
+    return Solicitud(
+        tipo_persona        = TipoPersona.MORAL,
+        institucion         = "INVEX",
+        numero_contrato     = _buscar(r"\b(\d{8})\b", texto),
+        fecha_alta          = _fecha(_buscar(r"\b(\d{2}/\d{2}/\d{4})\b", texto)),
+        ejecutivo_cuenta    = _buscar(r"ai\d+\s+([A-ZÁÉÍÓÚÑ ]+?)\s*\n", texto),
+        empresa             = empresa,
+        accionistas         = accionistas,
+        representantes      = representantes,
+        procedencia_recursos= _buscar(r"PROCEDENCIA DE LOS RECURSOS[^:]*:\s*([A-ZÁÉÍÓÚÑ ]+)", texto),
+        uso_cuenta          = _buscar(r"USO QUE SE PRETENDE DAR A LA CUENTA:\s*([A-ZÁÉÍÓÚÑ ]+)", texto),
+    )
+
+
+def detectar_y_extraer(data: bytes) -> Solicitud:
+    texto = leer_texto_pdf(data).upper()
+    if "PERSONA MORAL" in texto:
+        return extraer_pm(data)
+    return extraer_pf(data)
+
+
 
 def _f(d): return d.strftime("%d/%m/%Y") if d else ""
 
@@ -351,7 +509,95 @@ def _perfil(sol):
         "D158": lambda s: nombre_firma,
     }}
 
-MAPAS_XLSX = {"Checklist": _checklist, "kyc": _kyc, "Perfil": _perfil}
+def contexto_docx_pm(sol: Solicitud) -> dict:
+    e = sol.empresa or Empresa()
+    rl = sol.representantes[0] if sol.representantes else RepresentanteLegal()
+    ac1 = sol.accionistas[0] if len(sol.accionistas) > 0 else Accionista()
+    ac2 = sol.accionistas[1] if len(sol.accionistas) > 1 else Accionista()
+    return {
+        "contrato"          : sol.numero_contrato,
+        "razon_social"      : e.razon_social,
+        "rfc"               : e.rfc,
+        "nacionalidad"      : e.nacionalidad,
+        "fecha_constitucion": _f(e.fecha_constitucion),
+        "acta_constitutiva" : e.acta_constitutiva,
+        "notario"           : e.notario,
+        "numero_notario"    : e.numero_notario,
+        "ciudad_notario"    : e.ciudad_notario,
+        "inscripcion_rpp"   : e.inscripcion_rpp,
+        "giro"              : e.giro,
+        "fiel"              : e.fiel,
+        "telefono"          : e.telefono,
+        "correo"            : e.correo,
+        "domicilio"         : e.domicilio.una_linea(),
+        "pais"              : e.domicilio.pais,
+        "entidad_federativa": e.domicilio.entidad_federativa,
+        "fecha_alta"        : _f(sol.fecha_alta),
+        "fecha_recepcion"   : _f(sol.fecha_alta),
+        "rep_nombre"        : rl.nombre_completo,
+        "rep_puesto"        : rl.puesto,
+        "rep_ine"           : rl.numero_identificacion,
+        "rep_vigencia"      : _f(rl.vigencia_identificacion),
+        "acta_poderes"      : rl.acta_poderes,
+        "notario_poderes"   : rl.notario_poderes,
+        "accionista1"       : ac1.nombre_completo,
+        "pct1"              : ac1.porcentaje,
+        "accionista2"       : ac2.nombre_completo,
+        "pct2"              : ac2.porcentaje,
+        # campos PF vacíos para que Jinja no falle si la plantilla los usa
+        "nombre": e.razon_social, "curp": "", "ine": "",
+        "fecha_nacimiento": "", "actividad": e.giro,
+        "tipo_persona": "MORAL", "institucion": sol.institucion,
+        "cotitular": "",
+    }
+
+def _checklist_pm(sol):
+    e = sol.empresa or Empresa()
+    rl = sol.representantes[0] if sol.representantes else RepresentanteLegal()
+    return {"Persona Moral": {
+        "F5" : lambda s: _f(s.fecha_alta),
+        "F7" : lambda s: s.numero_contrato,
+        "C9" : lambda s: e.razon_social,
+        "E10": lambda s: e.giro,
+        "C11": lambda s: e.nacionalidad,
+        "C12": lambda s: e.fecha_constitucion,
+        "C13": lambda s: e.rfc,
+        "C19": lambda s: rl.nombre_completo,
+        "C25": lambda s: e.telefono,
+        "C26": lambda s: e.correo,
+    }}
+
+def _kyc_pm(sol):
+    e = sol.empresa or Empresa()
+    return {"Hoja1": {
+        "O8" : lambda s: s.numero_contrato,
+        "B11": lambda s: e.razon_social,
+        "K11": lambda s: "JUAN JAVIER GILBERTO TELLEZ LOPEZ",
+        "D13": lambda s: "MORAL",
+        "E20": lambda s: e.giro,
+    }}
+
+def _perfil_pm(sol):
+    e = sol.empresa or Empresa()
+    rl = sol.representantes[0] if sol.representantes else RepresentanteLegal()
+    return {"Hoja1": {
+        "D146": lambda s: e.razon_social,
+        "D147": lambda s: e.fecha_constitucion,
+        "D148": lambda s: e.giro,
+        "D150": lambda s: s.numero_contrato,
+        "D151": lambda s: s.fecha_alta,
+        "D152": lambda s: e.correo,
+        "D156": lambda s: rl.nombre_completo,
+    }}
+
+MAPAS_XLSX = {
+    "Checklist Expediente (3)": _checklist,      # PF: "1-Checklist Expediente (3).xlsx"
+    "Checklist Expediente PM":  _checklist_pm,   # PM: renombrar a "1-Checklist Expediente PM.xlsx"
+    "kyc Visita Ocular  (Firma)": _kyc,           # PF
+    "CV kyc Visita Ocular":     _kyc_pm,          # PM
+    "Perfil Persona Fisica":    _perfil,          # PF
+    "CV Perfil Persona Moral":  _perfil_pm,       # PM
+}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -361,7 +607,8 @@ MAPAS_XLSX = {"Checklist": _checklist, "kyc": _kyc, "Perfil": _perfil}
 def render_docx(plantilla: Path, salida: Path, sol: Solicitud) -> Path:
     from docxtpl import DocxTemplate
     doc = DocxTemplate(str(plantilla))
-    doc.render(contexto_docx(sol))
+    ctx = contexto_docx_pm(sol) if sol.tipo_persona == TipoPersona.MORAL else contexto_docx(sol)
+    doc.render(ctx)
     salida.parent.mkdir(parents=True, exist_ok=True)
     doc.save(str(salida))
     return salida
@@ -394,9 +641,10 @@ def render_xlsx(plantilla: Path, salida: Path, sol: Solicitud) -> Path:
 # PIPELINE → ZIP
 # ══════════════════════════════════════════════════════════════════════════════
 
-def procesar_a_zip(pdf_bytes: bytes, tillas: Path) -> tuple[bytes, Solicitud, list, list]:
+def procesar_a_zip(pdf_bytes: bytes, carpeta_pf: Path, carpeta_pm: Path) -> tuple[bytes, Solicitud, list, list]:
     """Extrae, rellena formatos y devuelve (zip_bytes, solicitud, advertencias, errores)."""
-    sol = extraer_pf(pdf_bytes)
+    sol = detectar_y_extraer(pdf_bytes)
+    carpeta_plantillas = carpeta_pm if sol.tipo_persona == TipoPersona.MORAL else carpeta_pf
     advertencias = sol.advertencias()
     errores = []
     formatos = []
@@ -406,7 +654,7 @@ def procesar_a_zip(pdf_bytes: bytes, tillas: Path) -> tuple[bytes, Solicitud, li
         salida = tmp_path / "formatos"
         salida.mkdir()
 
-        for plantilla in sorted(CARPETA_PLANTILLAS.iterdir()):
+        for plantilla in sorted(carpeta_plantillas.iterdir()):
             out = salida / plantilla.name
             try:
                 if plantilla.suffix.lower() == ".docx":
@@ -416,7 +664,6 @@ def procesar_a_zip(pdf_bytes: bytes, tillas: Path) -> tuple[bytes, Solicitud, li
             except Exception as e:
                 errores.append(f"{plantilla.name}: {e}")
 
-        # Armar ZIP en memoria
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             for f in formatos:
@@ -428,21 +675,21 @@ def procesar_a_zip(pdf_bytes: bytes, tillas: Path) -> tuple[bytes, Solicitud, li
 # UI
 # ══════════════════════════════════════════════════════════════════════════════
 
-CARPETA_PLANTILLAS = Path(__file__).parent / "templates" / "pf"
+CARPETA_PF = Path(__file__).parent / "templates" / "pf"
+CARPETA_PM = Path(__file__).parent / "templates" / "pm"
 
 st.markdown("# 🏦 Apertura de Cuentas INVEX")
-st.markdown("**Persona Física** — Llenado automático de formatos")
+st.markdown("**Persona Física y Moral** — Llenado automático de formatos")
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
 # ── verificar plantillas ───────────────────────────────────────────────────
-if not CARPETA_PLANTILLAS.exists() or not any(CARPETA_PLANTILLAS.iterdir()):
-    st.error("⚠️ No se encontraron plantillas en `templates/pf/`. "
-             "Asegúrate de haber corrido el paso de preparación de plantillas.")
+if not CARPETA_PF.exists() or not any(CARPETA_PF.iterdir()):
+    st.error("⚠️ No se encontraron plantillas en `templates/pf/`.")
     st.stop()
 
 # ── subir PDF ─────────────────────────────────────────────────────────────
 st.markdown("### 📄 Solicitud de Apertura")
-st.markdown('<div class="upload-hint">Arrastra o selecciona el PDF de la Solicitud de Apertura de Cuentas (Persona Física)</div>',
+st.markdown('<div class="upload-hint">Arrastra o selecciona el PDF de la Solicitud de Apertura (Persona Física o Moral)</div>',
             unsafe_allow_html=True)
 
 archivo = st.file_uploader("", type=["pdf"], label_visibility="collapsed")
@@ -455,46 +702,77 @@ pdf_bytes = archivo.read()
 # ── procesar ──────────────────────────────────────────────────────────────
 with st.spinner("Extrayendo datos del PDF..."):
     try:
-        zip_bytes, sol, advertencias, errores = procesar_a_zip(pdf_bytes, CARPETA_PLANTILLAS)
+        zip_bytes, sol, advertencias, errores = procesar_a_zip(pdf_bytes, CARPETA_PF, CARPETA_PM)
     except Exception as e:
         st.error(f"Error al procesar el PDF: {e}")
         st.stop()
 
-t = sol.titular
+es_pm = sol.tipo_persona == TipoPersona.MORAL
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
 # ── datos extraídos ───────────────────────────────────────────────────────
-st.markdown("### 👤 Datos extraídos")
+tipo_label = "🏢 Persona Moral" if es_pm else "👤 Persona Física"
+st.markdown(f"### {tipo_label} — Datos extraídos")
 
 col1, col2 = st.columns(2)
-with col1:
-    st.markdown(f'<div class="campo-card"><div class="campo-label">Nombre completo</div>'
-                f'<div class="campo-valor">{t.nombre_completo or "—"}</div></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="campo-card"><div class="campo-label">RFC</div>'
-                f'<div class="campo-valor">{t.rfc or "—"}</div></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="campo-card"><div class="campo-label">CURP</div>'
-                f'<div class="campo-valor">{t.curp or "—"}</div></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="campo-card"><div class="campo-label">Fecha de nacimiento</div>'
-                f'<div class="campo-valor">{_f(t.fecha_nacimiento) or "—"}</div></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="campo-card"><div class="campo-label">Teléfono</div>'
-                f'<div class="campo-valor">{t.telefono or "—"}</div></div>', unsafe_allow_html=True)
 
-with col2:
-    st.markdown(f'<div class="campo-card"><div class="campo-label">No. Contrato</div>'
-                f'<div class="campo-valor">{sol.numero_contrato or "—"}</div></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="campo-card"><div class="campo-label">Fecha de alta</div>'
-                f'<div class="campo-valor">{_f(sol.fecha_alta) or "—"}</div></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="campo-card"><div class="campo-label">INE / Identificación</div>'
-                f'<div class="campo-valor">{t.numero_identificacion or "—"}</div></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="campo-card"><div class="campo-label">Correo</div>'
-                f'<div class="campo-valor">{t.correo or "—"}</div></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="campo-card"><div class="campo-label">Domicilio</div>'
-                f'<div class="campo-valor">{t.domicilio.una_linea() or "—"}</div></div>', unsafe_allow_html=True)
-
-if sol.cotitulares:
-    st.markdown(f'<div class="campo-card"><div class="campo-label">Cotitular</div>'
-                f'<div class="campo-valor">{sol.cotitulares[0].nombre_completo}</div></div>',
-                unsafe_allow_html=True)
+if es_pm:
+    e = sol.empresa or Empresa()
+    rl = sol.representantes[0] if sol.representantes else RepresentanteLegal()
+    with col1:
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Razón Social</div>'
+                    f'<div class="campo-valor">{e.razon_social or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">RFC</div>'
+                    f'<div class="campo-valor">{e.rfc or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Fecha de constitución</div>'
+                    f'<div class="campo-valor">{_f(e.fecha_constitucion) or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Giro</div>'
+                    f'<div class="campo-valor">{e.giro or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Teléfono</div>'
+                    f'<div class="campo-valor">{e.telefono or "—"}</div></div>', unsafe_allow_html=True)
+    with col2:
+        st.markdown(f'<div class="campo-card"><div class="campo-label">No. Contrato</div>'
+                    f'<div class="campo-valor">{sol.numero_contrato or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Fecha de alta</div>'
+                    f'<div class="campo-valor">{_f(sol.fecha_alta) or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Representante Legal</div>'
+                    f'<div class="campo-valor">{rl.nombre_completo or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Correo</div>'
+                    f'<div class="campo-valor">{e.correo or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Domicilio</div>'
+                    f'<div class="campo-valor">{e.domicilio.una_linea() or "—"}</div></div>', unsafe_allow_html=True)
+    if sol.accionistas:
+        for ac in sol.accionistas:
+            st.markdown(f'<div class="campo-card"><div class="campo-label">Accionista ({ac.porcentaje:.0f}%)</div>'
+                        f'<div class="campo-valor">{ac.nombre_completo}</div></div>', unsafe_allow_html=True)
+else:
+    t = sol.titular
+    with col1:
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Nombre completo</div>'
+                    f'<div class="campo-valor">{t.nombre_completo or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">RFC</div>'
+                    f'<div class="campo-valor">{t.rfc or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">CURP</div>'
+                    f'<div class="campo-valor">{t.curp or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Fecha de nacimiento</div>'
+                    f'<div class="campo-valor">{_f(t.fecha_nacimiento) or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Teléfono</div>'
+                    f'<div class="campo-valor">{t.telefono or "—"}</div></div>', unsafe_allow_html=True)
+    with col2:
+        st.markdown(f'<div class="campo-card"><div class="campo-label">No. Contrato</div>'
+                    f'<div class="campo-valor">{sol.numero_contrato or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Fecha de alta</div>'
+                    f'<div class="campo-valor">{_f(sol.fecha_alta) or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">INE / Identificación</div>'
+                    f'<div class="campo-valor">{t.numero_identificacion or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Correo</div>'
+                    f'<div class="campo-valor">{t.correo or "—"}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Domicilio</div>'
+                    f'<div class="campo-valor">{t.domicilio.una_linea() or "—"}</div></div>', unsafe_allow_html=True)
+    if sol.cotitulares:
+        st.markdown(f'<div class="campo-card"><div class="campo-label">Cotitular</div>'
+                    f'<div class="campo-valor">{sol.cotitulares[0].nombre_completo}</div></div>',
+                    unsafe_allow_html=True)
 
 # ── advertencias / errores ────────────────────────────────────────────────
 if advertencias:
@@ -507,7 +785,8 @@ if errores:
 
 # ── formatos generados ────────────────────────────────────────────────────
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
-n_formatos = len(list(CARPETA_PLANTILLAS.iterdir()))
+carpeta_activa = CARPETA_PM if es_pm else CARPETA_PF
+n_formatos = len([f for f in carpeta_activa.iterdir() if f.suffix.lower() in (".docx",".xlsx",".xlsm")])
 n_ok = n_formatos - len(errores)
 
 if n_ok > 0:
