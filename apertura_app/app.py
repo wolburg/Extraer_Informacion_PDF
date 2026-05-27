@@ -328,7 +328,7 @@ def _kyc(sol):
         "B51": lambda s: t.domicilio.calle_numero,
         "F51": lambda s: t.domicilio.colonia,
         "M51": lambda s: t.domicilio.municipio,
-        "B53": lambda s: t.domicilio.ciudad or t.domicilio.municipio,
+        "B53": lambda s: t.domicilio.municipio,
         "E53": lambda s: t.domicilio.entidad_federativa,
         "I53": lambda s: t.domicilio.codigo_postal,
         "K53": lambda s: t.domicilio.pais,        
