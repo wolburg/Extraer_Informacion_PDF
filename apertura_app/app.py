@@ -325,12 +325,16 @@ def _kyc(sol):
         "H33": lambda s: t.correo,
         "C33": lambda s: t.telefono,
         "K12": lambda s: "JUAN JAVIER GILBERTO TELLEZ LOPEZ",
-        "B50": lambda s: t.domicilio.una_linea(),
+        "B51": lambda s: t.domicilio.calle_numero,
+        "F51": lambda s: t.domicilio.colonia,
+        "M51": lambda s: t.domicilio.municipio,
         "B53": lambda s: t.domicilio.ciudad or t.domicilio.municipio,
         "E53": lambda s: t.domicilio.entidad_federativa,
+        "I53": lambda s: t.domicilio.codigo_postal,
+        "K53": lambda s: t.domicilio.pais,        
         "D70": lambda s: t.nombre_completo,
         "D71": lambda s: t.tipo_identificacion,
-        "E72": lambda s: t.numero_identificacion,
+        "N71": lambda s: t.numero_identificacion,
         "C79": lambda s: t.nombre_completo,
     }}
 
