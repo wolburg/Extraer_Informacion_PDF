@@ -402,7 +402,7 @@ def procesar_a_zip(pdf_bytes: bytes, tillas: Path) -> tuple[bytes, Solicitud, li
         salida = tmp_path / "formatos"
         salida.mkdir()
 
-        for plantilla in sorted(carpeta_plantillas.iterdir()):
+        for plantilla in sorted(CARPETA_PLANTILLAS.iterdir()):
             out = salida / plantilla.name
             try:
                 if plantilla.suffix.lower() == ".docx":
