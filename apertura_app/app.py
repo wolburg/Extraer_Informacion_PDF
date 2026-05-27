@@ -390,7 +390,7 @@ def render_xlsx(plantilla: Path, salida: Path, sol: Solicitud) -> Path:
 # PIPELINE → ZIP
 # ══════════════════════════════════════════════════════════════════════════════
 
-def procesar_a_zip(pdf_bytes: bytes, carpeta_plantillas: Path) -> tuple[bytes, Solicitud, list, list]:
+def procesar_a_zip(pdf_bytes: bytes, tillas: Path) -> tuple[bytes, Solicitud, list, list]:
     """Extrae, rellena formatos y devuelve (zip_bytes, solicitud, advertencias, errores)."""
     sol = extraer_pf(pdf_bytes)
     advertencias = sol.advertencias()
@@ -424,7 +424,7 @@ def procesar_a_zip(pdf_bytes: bytes, carpeta_plantillas: Path) -> tuple[bytes, S
 # UI
 # ══════════════════════════════════════════════════════════════════════════════
 
-CARPETA_PLANTILLAS = Path("templates/pf")
+CARPETA_PLANTILLAS = Path(__file__).parent / "templates" / "pf"
 
 st.markdown("# 🏦 Apertura de Cuentas INVEX")
 st.markdown("**Persona Física** — Llenado automático de formatos")
