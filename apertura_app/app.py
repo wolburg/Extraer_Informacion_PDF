@@ -509,11 +509,33 @@ def _perfil(sol):
         "D158": lambda s: nombre_firma,
     }}
 
+TIPOS_SOCIETARIOS = {
+    "S.A. DE C.V.": "SOCIEDAD ANÓNIMA DE CAPITAL VARIABLE",
+    "S.A.":         "SOCIEDAD ANÓNIMA",
+    "S. DE R.L. DE C.V.": "SOCIEDAD DE RESPONSABILIDAD LIMITADA DE CAPITAL VARIABLE",
+    "S. DE R.L.":   "SOCIEDAD DE RESPONSABILIDAD LIMITADA",
+    "S.A.S.":       "SOCIEDAD POR ACCIONES SIMPLIFICADA",
+    "A.C.":         "ASOCIACIÓN CIVIL",
+    "S.C.":         "SOCIEDAD CIVIL",
+    "S.A.P.I. DE C.V.": "SOCIEDAD ANÓNIMA PROMOTORA DE INVERSIÓN DE CAPITAL VARIABLE",
+}
+
+def _tipo_societario(razon_social: str) -> str:
+    """Detecta el tipo societario en la razón social y lo devuelve desarrollado."""
+    rs = razon_social.upper()
+    for sigla, nombre in TIPOS_SOCIETARIOS.items():
+        if sigla.upper() in rs:
+            return nombre
+    return ""
+
 def contexto_docx_pm(sol: Solicitud) -> dict:
     e = sol.empresa or Empresa()
     rl = sol.representantes[0] if sol.representantes else RepresentanteLegal()
     ac1 = sol.accionistas[0] if len(sol.accionistas) > 0 else Accionista()
     ac2 = sol.accionistas[1] if len(sol.accionistas) > 1 else Accionista()
+    # Ciudad del notario: usar ciudad_notario si existe, si no usar municipio del domicilio
+    ciudad_n = e.ciudad_notario or e.domicilio.municipio or e.domicilio.ciudad
+    entidad  = e.domicilio.entidad_federativa
     return {
         "contrato"          : sol.numero_contrato,
         "razon_social"      : e.razon_social,
@@ -523,15 +545,16 @@ def contexto_docx_pm(sol: Solicitud) -> dict:
         "acta_constitutiva" : e.acta_constitutiva,
         "notario"           : e.notario,
         "numero_notario"    : e.numero_notario,
-        "ciudad_notario"    : e.ciudad_notario,
+        "ciudad_notario"    : ciudad_n,
         "inscripcion_rpp"   : e.inscripcion_rpp,
+        "tipo_societario"   : _tipo_societario(e.razon_social),
         "giro"              : e.giro,
         "fiel"              : e.fiel,
         "telefono"          : e.telefono,
         "correo"            : e.correo,
         "domicilio"         : e.domicilio.una_linea(),
         "pais"              : e.domicilio.pais,
-        "entidad_federativa": e.domicilio.entidad_federativa,
+        "entidad_federativa": entidad,
         "fecha_alta"        : _f(sol.fecha_alta),
         "fecha_recepcion"   : _f(sol.fecha_alta),
         "rep_nombre"        : rl.nombre_completo,
@@ -541,10 +564,10 @@ def contexto_docx_pm(sol: Solicitud) -> dict:
         "acta_poderes"      : rl.acta_poderes,
         "notario_poderes"   : rl.notario_poderes,
         "accionista1"       : ac1.nombre_completo,
-        "pct1"              : ac1.porcentaje,
+        "pct1"              : f"{ac1.porcentaje:.0f}",
         "accionista2"       : ac2.nombre_completo,
-        "pct2"              : ac2.porcentaje,
-        # campos PF vacíos para que Jinja no falle si la plantilla los usa
+        "pct2"              : f"{ac2.porcentaje:.0f}",
+        # campos PF vacíos para que Jinja no falle
         "nombre": e.razon_social, "curp": "", "ine": "",
         "fecha_nacimiento": "", "actividad": e.giro,
         "tipo_persona": "MORAL", "institucion": sol.institucion,
@@ -554,6 +577,7 @@ def contexto_docx_pm(sol: Solicitud) -> dict:
 def _checklist_pm(sol):
     e = sol.empresa or Empresa()
     rl = sol.representantes[0] if sol.representantes else RepresentanteLegal()
+    LLENAR_POR_ASESOR = "llenarse por SM/ASESOR"
     return {"Persona Moral": {
         "F5" : lambda s: _f(s.fecha_alta),
         "F7" : lambda s: s.numero_contrato,
@@ -565,6 +589,13 @@ def _checklist_pm(sol):
         "C19": lambda s: rl.nombre_completo,
         "C25": lambda s: e.telefono,
         "C26": lambda s: e.correo,
+        # campos fijos
+        "C30": lambda s: LLENAR_POR_ASESOR,  # Nombre persona de contacto
+        "C31": lambda s: LLENAR_POR_ASESOR,  # Propietarios reales
+        "C32": lambda s: LLENAR_POR_ASESOR,  # Administradores
+        "C33": lambda s: LLENAR_POR_ASESOR,  # Director general
+        "C34": lambda s: LLENAR_POR_ASESOR,  # Gerentes
+        "C35": lambda s: LLENAR_POR_ASESOR,  # Persona de contacto
     }}
 
 def _kyc_pm(sol):
