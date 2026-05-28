@@ -577,7 +577,7 @@ def contexto_docx_pm(sol: Solicitud) -> dict:
 def _checklist_pm(sol):
     e = sol.empresa or Empresa()
     rl = sol.representantes[0] if sol.representantes else RepresentanteLegal()
-    LLENAR_POR_ASESOR = "llenarse por SM/ASESOR"
+    ASESOR = "llenarse por SM/ASESOR"
     return {"Persona Moral": {
         "F5" : lambda s: _f(s.fecha_alta),
         "F7" : lambda s: s.numero_contrato,
@@ -586,16 +586,16 @@ def _checklist_pm(sol):
         "C11": lambda s: e.nacionalidad,
         "C12": lambda s: e.fecha_constitucion,
         "C13": lambda s: e.rfc,
-        "C19": lambda s: rl.nombre_completo,
+        "C14": lambda s: ASESOR,      
+        "D15": lambda s: ASESOR,       
+        "C16": lambda s: ASESOR,       
+        "C17": lambda s: ASESOR,       
+        "C18": lambda s: ASESOR,        
+        "C19": lambda s: rl.nombre_completo,  
+        "C20": lambda s: e.fiel,       
+        "C23": lambda s: ASESOR,       
         "C25": lambda s: e.telefono,
         "C26": lambda s: e.correo,
-        # campos fijos
-        "C30": lambda s: LLENAR_POR_ASESOR,  # Nombre persona de contacto
-        "C31": lambda s: LLENAR_POR_ASESOR,  # Propietarios reales
-        "C32": lambda s: LLENAR_POR_ASESOR,  # Administradores
-        "C33": lambda s: LLENAR_POR_ASESOR,  # Director general
-        "C34": lambda s: LLENAR_POR_ASESOR,  # Gerentes
-        "C35": lambda s: LLENAR_POR_ASESOR,  # Persona de contacto
     }}
 
 def _kyc_pm(sol):
