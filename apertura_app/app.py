@@ -429,8 +429,7 @@ def _f(d): return d.strftime("%d/%m/%Y") if d else ""
 
 def contexto_docx(sol: Solicitud) -> dict:
     t = sol.titular
-    nombre = (t.nombre_completo + " / " + sol.cotitulares[0].nombre_completo
-              if sol.cotitulares else t.nombre_completo)
+    nombre = t.nombre_completo
     return {
         "contrato": sol.numero_contrato,
         "nombre": nombre,
