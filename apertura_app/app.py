@@ -455,8 +455,8 @@ def _checklist(sol):
     t = sol.titular
     cot = sol.cotitulares[0].nombre_completo if sol.cotitulares else ""
     return {"Persona Física": {
-        "F3": lambda s: s.numero_contrato,      
-        "F4": lambda s: _f(s.fecha_alta),        
+        "G3": lambda s: s.numero_contrato,      
+        "G4": lambda s: _f(s.fecha_alta),        
         "C10": lambda s: t.nombre_completo,
         "C11": lambda s: cot,                    
         "C13": lambda s: t.nacionalidad.replace("MEXICO", "MEXICANA"),
