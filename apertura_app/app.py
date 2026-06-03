@@ -272,7 +272,7 @@ def _buscar(patron, texto, grupo=1):
 _STOP = (r"TIPO FIRMA|FECHA NACIMIENTO|C\.U\.R\.P|ENT\. NAC|R\. ?F\.C|"
          r"TIPO IDENTIFICACION|NUMERO IDENTIFICACION|SEXO|VIGENCIA|FIEL|TIN|"
          r"CODIGO POSTAL|CD\. O POB|COMPROBANTE|PAIS|NUMERO|RESIDENCIA TELEFONO|"
-         r"MEDIO NOTIFICA|EN CASO AFIRMATIVO|\n")
+         r"MEDIO |EN CASO AFIRMATIVO|\n")
 
 
 def leer_texto_pdf(data: bytes) -> str:
@@ -358,7 +358,7 @@ def extraer_pm(data: bytes) -> Solicitud:
         giro              = _buscar(r"GIRO DE NEGOCIO / ACTIVIDAD:\s*(.+?)(?:\n|No\.)", texto),
         fiel              = _buscar(r"FIEL:\s*([\dA-Z]+)", texto),
         telefono          = _buscar(r"CELULAR / MOVIL\s*([\d()]+)", texto),
-        correo            = _buscar(r"NOTIFICACI[OÓ]N[\s\S]{1,60}?([\w.\-]+@[\w.\-]+)", texto),
+        correo            = _buscar(r"([\w.\-]+@[\w.\-]+)", texto),
         domicilio         = Domicilio(
             calle_numero      = _buscar(r"CALLE Y NUMERO:\s*(.+)", texto),
             colonia           = _buscar(r"COLONIA:\s*(.+?)(?:CODIGO POSTAL|\n)", texto),
