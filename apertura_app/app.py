@@ -605,6 +605,7 @@ def _kyc_pm(sol):
         "K11": lambda s: "JUAN JAVIER GILBERTO TELLEZ LOPEZ",
         "D13": lambda s: "MORAL",
         "E20": lambda s: e.giro,
+        "O3": lambda s: s.fecha_alta, 
     }}
 
 def _perfil_pm(sol):
