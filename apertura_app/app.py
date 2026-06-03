@@ -557,6 +557,7 @@ def contexto_docx_pm(sol: Solicitud) -> dict:
         "giro"              : e.giro,
         "fiel"              : e.fiel,
         "telefono"          : e.telefono,
+        "tipo_firma": getattr(sol.representantes[0], '_tipo_firma', '') if sol.representantes else "",
         "correo"            : e.correo,
         "domicilio"         : e.domicilio.una_linea(),
         "pais"              : e.domicilio.pais,
