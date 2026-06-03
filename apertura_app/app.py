@@ -189,7 +189,8 @@ class Accionista:
 class RepresentanteLegal:
     def __init__(self, nombre="", apellido_paterno="", apellido_materno="",
                  nacionalidad="MEXICO", tipo_identificacion="INE",
-                 numero_identificacion="", vigencia_identificacion=None,
+                 numero_identificacion="", vigencia_identificacion=None, numero_notario_poderes = "",
+                 inscripcion_poderes="",
                  puesto="", acta_poderes="", notario_poderes="", ciudad_poderes=""):
         self.nombre                  = nombre
         self.apellido_paterno        = apellido_paterno
@@ -202,6 +203,9 @@ class RepresentanteLegal:
         self.acta_poderes            = acta_poderes
         self.notario_poderes         = notario_poderes
         self.ciudad_poderes          = ciudad_poderes
+        self.numero_notario_poderes  = numero_notario_poderes
+        self.inscripcion_poderes     = inscripcion_poderes
+
 
     @property
     def nombre_completo(self) -> str:
@@ -406,7 +410,10 @@ def extraer_pm(data: bytes) -> Solicitud:
             notario_poderes       = _buscar(r"ANTE EL NOTARIO:\s*(.+?)(?:CON No\.|\n)", rl_txt),
             ciudad_poderes        = _buscar(r"DE LA CIUDAD:\s*([A-ZÁÉÍÓÚÑ]+)", rl_txt),
         )
-        rl._tipo_firma = tipo_firma.upper()
+        rl._tipo_firma             = tipo_firma.upper()
+        rl._fecha_poderes          = _buscar(r"DE FECHA:\s*(\d{2}/\d{2}/\d{4})", rl_txt)
+        rl.numero_notario_poderes  = _buscar(r"CON No\.:\s*(\d+)", rl_txt)
+        rl._inscripcion_poderes    = _buscar(r"INSCRIPCION R\.P\.P\. y C\.:\s*([\w*]+)", rl_txt)
         if rl.nombre_completo:
             representantes.append(rl)
 
@@ -543,47 +550,52 @@ def contexto_docx_pm(sol: Solicitud) -> dict:
     ciudad_n = e.ciudad_notario or e.domicilio.municipio or e.domicilio.ciudad
     entidad  = e.domicilio.entidad_federativa
     return {
-        "contrato"          : sol.numero_contrato,
-        "razon_social"      : e.razon_social,
-        "rfc"               : e.rfc,
-        "nacionalidad"      : e.nacionalidad,
-        "fecha_constitucion": _f(e.fecha_constitucion),
-        "acta_constitutiva" : e.acta_constitutiva,
-        "notario"           : e.notario,
-        "numero_notario"    : e.numero_notario,
-        "ciudad_notario"    : ciudad_n,
-        "inscripcion_rpp"   : e.inscripcion_rpp,
-        "tipo_societario"   : _tipo_societario(e.razon_social),
-        "giro"              : e.giro,
-        "fiel"              : e.fiel,
-        "telefono"          : e.telefono,
-        "tipo_firma": getattr(sol.representantes[0], '_tipo_firma', '') if sol.representantes else "",
-        "correo"            : e.correo,
-        "domicilio"         : e.domicilio.una_linea(),
-        "pais"              : e.domicilio.pais,
-        "entidad_federativa": entidad,
-        "fecha_alta"        : _f(sol.fecha_alta),
-        "fecha_recepcion"   : _f(sol.fecha_alta),
-        "rep_nombre": (
+        "contrato"              : sol.numero_contrato,
+        "razon_social"          : e.razon_social,
+        "rfc"                   : e.rfc,
+        "nacionalidad"          : e.nacionalidad,
+        "fecha_constitucion"    : _f(e.fecha_constitucion),
+        "acta_constitutiva"     : e.acta_constitutiva,
+        "notario"               : e.notario,
+        "numero_notario"        : e.numero_notario,
+        "ciudad_notario"        : ciudad_n,
+        "inscripcion_rpp"       : e.inscripcion_rpp,
+        "tipo_societario"       : _tipo_societario(e.razon_social),
+        "giro"                  : e.giro,
+        "fiel"                  : e.fiel,
+        "telefono"              : e.telefono,
+        "correo"                : e.correo,
+        "domicilio"             : e.domicilio.una_linea(),
+        "pais"                  : e.domicilio.pais,
+        "entidad_federativa"    : entidad,
+        "fecha_alta"            : _f(sol.fecha_alta),
+        "fecha_recepcion"       : _f(sol.fecha_alta),
+        "tipo_firma"            : getattr(sol.representantes[0], '_tipo_firma', '') if sol.representantes else "",
+        "rep_nombre"            : (
             " / ".join(r.nombre_completo for r in sol.representantes)
             if len(sol.representantes) > 1 and
                getattr(sol.representantes[0], '_tipo_firma', '') == 'MANCOMUNADA'
             else (sol.representantes[0].nombre_completo if sol.representantes else "")
         ),
-        "rep_puesto"        : rl.puesto,
-        "rep_ine"           : rl.numero_identificacion,
-        "rep_vigencia"      : _f(rl.vigencia_identificacion),
-        "acta_poderes"      : rl.acta_poderes,
-        "notario_poderes"   : rl.notario_poderes,
-        "accionista1"       : ac1.nombre_completo,
-        "pct1"              : f"{ac1.porcentaje:.0f}",
-        "accionista2"       : ac2.nombre_completo,
-        "pct2"              : f"{ac2.porcentaje:.0f}",
-        # campos PF vacíos para que Jinja no falle
-        "nombre": e.razon_social, "curp": "", "ine": "",
-        "fecha_nacimiento": "", "actividad": e.giro,
-        "tipo_persona": "MORAL", "institucion": sol.institucion,
-        "cotitular": "",
+        "rep_puesto"            : rl.puesto,
+        "rep_ine"               : rl.numero_identificacion,
+        "rep_vigencia"          : _f(rl.vigencia_identificacion),
+        "acta_poderes"          : rl.acta_poderes,
+        "notario_poderes"       : rl.notario_poderes,
+        "numero_notario_poderes": rl.numero_notario_poderes,
+        "fecha_poderes"         : getattr(rl, '_fecha_poderes', _f(e.fecha_constitucion)),
+        "ciudad_poderes"        : rl.ciudad_poderes,
+        "inscripcion_poderes"   : getattr(rl, '_inscripcion_poderes', e.inscripcion_rpp),
+        "accionista1"           : ac1.nombre_completo,
+        "pct1"                  : f"{ac1.porcentaje:.0f}",
+        "accionista2"           : ac2.nombre_completo,
+        "pct2"                  : f"{ac2.porcentaje:.0f}",
+        "nombre"                : e.razon_social,
+        "curp": "", "ine": "", "fecha_nacimiento": "",
+        "actividad"             : e.giro,
+        "tipo_persona"          : "MORAL",
+        "institucion"           : sol.institucion,
+        "cotitular"             : "",
     }
 
 def _checklist_pm(sol):
