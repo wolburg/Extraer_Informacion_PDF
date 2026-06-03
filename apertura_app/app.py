@@ -385,8 +385,14 @@ def extraer_pm(data: bytes) -> Solicitud:
 
     # Representante legal
     representantes = []
-    if "REPRESENTANTE LEGAL 1" in texto:
-        rl_txt = texto.split("REPRESENTANTE LEGAL 1")[1].split("ORGANIGRAMA")[0]
+    for i in range(1, 4):
+        marcador = f"REPRESENTANTE LEGAL {i}"
+        siguiente = f"REPRESENTANTE LEGAL {i+1}"
+        if marcador not in texto:
+            break
+        rl_txt = texto.split(marcador)[1]
+        rl_txt = rl_txt.split(siguiente)[0] if siguiente in texto else rl_txt.split("ORGANIGRAMA")[0]
+        tipo_firma = _buscar(r"TIPO DE FIRMA:\s*(\w+)", rl_txt)
         rl = RepresentanteLegal(
             nombre                = _buscar(r"NOMBRES\(S\):\s*([A-ZÁÉÍÓÚÑ ]+?)(?:NACIONALIDAD|\n)", rl_txt),
             apellido_paterno      = _buscar(r"APELLIDO PATERNO:\s*(.+?)(?:TIPO DE FIRMA|\n)", rl_txt),
@@ -400,6 +406,7 @@ def extraer_pm(data: bytes) -> Solicitud:
             notario_poderes       = _buscar(r"ANTE EL NOTARIO:\s*(.+?)(?:CON No\.|\n)", rl_txt),
             ciudad_poderes        = _buscar(r"DE LA CIUDAD:\s*([A-ZÁÉÍÓÚÑ]+)", rl_txt),
         )
+        rl._tipo_firma = tipo_firma.upper()
         if rl.nombre_completo:
             representantes.append(rl)
 
@@ -556,7 +563,12 @@ def contexto_docx_pm(sol: Solicitud) -> dict:
         "entidad_federativa": entidad,
         "fecha_alta"        : _f(sol.fecha_alta),
         "fecha_recepcion"   : _f(sol.fecha_alta),
-        "rep_nombre"        : rl.nombre_completo,
+        "rep_nombre": (
+            " / ".join(r.nombre_completo for r in sol.representantes)
+            if len(sol.representantes) > 1 and
+               getattr(sol.representantes[0], '_tipo_firma', '') == 'MANCOMUNADA'
+            else (sol.representantes[0].nombre_completo if sol.representantes else "")
+        ),
         "rep_puesto"        : rl.puesto,
         "rep_ine"           : rl.numero_identificacion,
         "rep_vigencia"      : _f(rl.vigencia_identificacion),
