@@ -357,7 +357,7 @@ def extraer_pm(data: bytes) -> Solicitud:
         notario           = _buscar(r"NOTARIO:\s*(.+?)(?:No\.|DE LA CIUDAD|\n)", texto),
         numero_notario    = _buscar(r"No\. NOTARIO:\s*(\d+)", texto),
         ciudad_notario    = _buscar(r"DE LA CIUDAD:\s*([A-ZÁÉÍÓÚÑ]+)", texto),
-        inscripcion_rpp   = _buscar(r"INSCRIPCION R\.P\.P\. y C\.:\s*([\d*A-Z]+)", texto),
+        inscripcion_rpp   = _buscar(r"INSCRIPCION R\.P\.P\. y C\.:\s*([\d*A-Z]+)", texto)
         tipo_sociedad     = _buscar(r"TIPO DE PERSONA MORAL:\s*(.+?)(?:\n|No\.)", texto),
         giro              = _buscar(r"GIRO DE NEGOCIO / ACTIVIDAD:\s*(.+?)(?:\n|No\.)", texto),
         fiel              = _buscar(r"FIEL:\s*([\dA-Z]+)", texto),
