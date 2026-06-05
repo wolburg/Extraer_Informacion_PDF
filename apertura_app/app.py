@@ -161,7 +161,7 @@ class Empresa:
         self.notario            = notario
         self.numero_notario     = numero_notario
         self.ciudad_notario     = ciudad_notario
-        self. = inscripcion_rpp
+        self.inscripcion_rpp    = inscripcion_rpp
         self.tipo_sociedad      = tipo_sociedad
         self.giro               = giro
         self.fiel               = fiel
