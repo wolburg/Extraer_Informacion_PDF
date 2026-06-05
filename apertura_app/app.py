@@ -852,7 +852,12 @@ if n_ok > 0:
 
 # ── descarga ──────────────────────────────────────────────────────────────
 st.markdown("### 📦 Descarga")
-nombre_zip = f"EXPEDIENTE_{sol.numero_contrato or 'SC'}.zip"
+if sol.tipo_persona == TipoPersona.MORAL:
+    nombre_cliente = (sol.empresa.razon_social if sol.empresa else "").replace(" ", "_").replace(",", "").replace(".", "")
+else:
+    nombre_cliente = sol.titular.nombre_completo.replace(" ", "_")
+
+nombre_zip = f"EXPEDIENTE_{sol.numero_contrato or 'SC'}_{nombre_cliente}.zip"
 
 st.download_button(
     label=f"⬇️  Descargar {nombre_zip}",
