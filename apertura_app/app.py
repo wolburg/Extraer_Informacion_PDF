@@ -632,8 +632,8 @@ def _kyc_pm(sol):
         "D13": lambda s: "MORAL",
         "E20": lambda s: e.giro,
         "O3": lambda s: s.fecha_alta, 
-        "C69": lambda s: rl.nombre_completo,
-        "N70": lambda s: rl.numero_identificacion,
+        "D69": lambda s: rl.nombre_completo,
+        "O70": lambda s: rl.numero_identificacion,
         "C79": lambda s: f"_______________________________\n\n{e.razon_social}",
     }}
 
