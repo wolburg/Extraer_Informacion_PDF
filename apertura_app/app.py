@@ -18,14 +18,14 @@ from typing import Optional
 
 import streamlit as st
 
-# ── página ────────────────────────────────────────────────────────────────────
+#  página
 st.set_page_config(
     page_title="Apertura de Cuentas INVEX",
     page_icon="🏦",
     layout="centered",
 )
 
-# ── estilos ───────────────────────────────────────────────────────────────────
+#  estilos 
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
@@ -78,9 +78,7 @@ h3 { font-family: 'DM Serif Display', serif; color: #0a2540 !important; }
 """, unsafe_allow_html=True)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # DOMINIO
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TipoPersona(str, Enum):
     FISICA = "FISICA"
@@ -660,9 +658,9 @@ MAPAS_XLSX = {
 }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+
 # RENDERIZADO
-# ══════════════════════════════════════════════════════════════════════════════
+
 
 def render_docx(plantilla: Path, salida: Path, sol: Solicitud) -> Path:
     from docxtpl import DocxTemplate
@@ -697,9 +695,7 @@ def render_xlsx(plantilla: Path, salida: Path, sol: Solicitud) -> Path:
     return salida
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 # PIPELINE → ZIP
-# ══════════════════════════════════════════════════════════════════════════════
 
 def procesar_a_zip(pdf_bytes: bytes, carpeta_pf: Path, carpeta_pm: Path) -> tuple[bytes, Solicitud, list, list]:
     """Extrae, rellena formatos y devuelve (zip_bytes, solicitud, advertencias, errores)."""
@@ -730,10 +726,62 @@ def procesar_a_zip(pdf_bytes: bytes, carpeta_pf: Path, carpeta_pm: Path) -> tupl
                 zf.write(f, f.name)
         return buf.getvalue(), sol, advertencias, errores
 
+#Agregar a sheets 
+def escribir_en_sheet(sol: Solicitud):
+    import gspread
+    from google.oauth2.service_account import Credentials
 
-# ══════════════════════════════════════════════════════════════════════════════
+    SCOPES = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"], scopes=SCOPES
+    )
+    client = gspread.authorize(creds)
+    sheet = client.open_by_key("1hB-ioiLVYaSWiLt3_ZKaCk2JKlMmSbr8nLsgWWfVOmQ").sheet1
+
+    t = sol.titular
+    e = sol.empresa
+
+    if sol.tipo_persona == TipoPersona.FISICA:
+        fila = [
+            sol.numero_contrato,
+            t.nombre_completo,
+            "FÍSICA",
+            sol.institucion,
+            t.domicilio.entidad_federativa,
+            t.nacionalidad,
+            t.actividad,
+            "", "", "",                       
+            _f(t.fecha_nacimiento),
+            "",                             
+            _f(sol.fecha_alta),
+            "",                              
+            "",                             
+            t.rfc,
+        ]
+    else:
+        fila = [
+            sol.numero_contrato,
+            e.razon_social if e else "",
+            "MORAL",
+            sol.institucion,
+            e.domicilio.entidad_federativa if e else "",
+            e.nacionalidad if e else "",
+            e.giro if e else "",
+            "", "", "",                       
+            _f(e.fecha_constitucion) if e else "",
+            "",                              
+            _f(sol.fecha_alta),
+            "",                               
+            "",                               
+            e.rfc if e else "",
+        ]
+
+    sheet.append_row(fila, value_input_option="USER_ENTERED")
+
 # UI
-# ══════════════════════════════════════════════════════════════════════════════
 
 CARPETA_PF = Path(__file__).parent / "templates" / "pf"
 CARPETA_PM = Path(__file__).parent / "templates" / "pm"
@@ -742,12 +790,12 @@ st.markdown("# 🏦 Apertura de Cuentas INVEX")
 st.markdown("**Persona Física y Moral** — Llenado automático de formatos")
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-# ── verificar plantillas ───────────────────────────────────────────────────
+# ── verificar plantillas 
 if not CARPETA_PF.exists() or not any(CARPETA_PF.iterdir()):
     st.error("⚠️ No se encontraron plantillas en `templates/pf/`.")
     st.stop()
 
-# ── subir PDF ─────────────────────────────────────────────────────────────
+# ── subir PDF 
 st.markdown("### 📄 Solicitud de Apertura")
 st.markdown('<div class="upload-hint">Arrastra o selecciona el PDF de la Solicitud de Apertura (Persona Física o Moral)</div>',
             unsafe_allow_html=True)
@@ -759,10 +807,14 @@ if archivo is None:
 
 pdf_bytes = archivo.read()
 
-# ── procesar ──────────────────────────────────────────────────────────────
+# ── procesar 
 with st.spinner("Extrayendo datos del PDF..."):
     try:
         zip_bytes, sol, advertencias, errores = procesar_a_zip(pdf_bytes, CARPETA_PF, CARPETA_PM)
+        try:
+            escribir_en_sheet(sol)
+        except Exception as e_sheet:
+            st.warning(f"⚠️ Formatos generados correctamente pero no se pudo escribir en Google Sheets: {e_sheet}")
     except Exception as e:
         st.error(f"Error al procesar el PDF: {e}")
         st.stop()
@@ -770,7 +822,7 @@ with st.spinner("Extrayendo datos del PDF..."):
 es_pm = sol.tipo_persona == TipoPersona.MORAL
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-# ── datos extraídos ───────────────────────────────────────────────────────
+# ── datos extraídos 
 tipo_label = "🏢 Persona Moral" if es_pm else "👤 Persona Física"
 st.markdown(f"### {tipo_label} — Datos extraídos")
 
@@ -834,7 +886,7 @@ else:
                     f'<div class="campo-valor">{sol.cotitulares[0].nombre_completo}</div></div>',
                     unsafe_allow_html=True)
 
-# ── advertencias / errores ────────────────────────────────────────────────
+# ── advertencias / errores 
 if advertencias:
     for w in advertencias:
         st.markdown(f'<div class="warn-box">⚠️ {w}</div>', unsafe_allow_html=True)
@@ -843,7 +895,7 @@ if errores:
     for e in errores:
         st.markdown(f'<div class="warn-box">❌ {e}</div>', unsafe_allow_html=True)
 
-# ── formatos generados ────────────────────────────────────────────────────
+# ── formatos generados 
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 carpeta_activa = CARPETA_PM if es_pm else CARPETA_PF
 n_formatos = len([f for f in carpeta_activa.iterdir() if f.suffix.lower() in (".docx",".xlsx",".xlsm")])
@@ -853,7 +905,7 @@ if n_ok > 0:
     st.markdown(f'<div class="ok-box">✅ {n_ok} de {n_formatos} formatos generados correctamente.</div>',
                 unsafe_allow_html=True)
 
-# ── descarga ──────────────────────────────────────────────────────────────
+# ── descarga 
 st.markdown("### 📦 Descarga")
 if sol.tipo_persona == TipoPersona.MORAL:
     nombre_cliente = (sol.empresa.razon_social if sol.empresa else "").replace(" ", "_").replace(",", "").replace(".", "")
